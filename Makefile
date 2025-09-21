@@ -1,11 +1,19 @@
+
 .PHONY: help setup lint test format check wizard
+
+.PHONY: help setup lint test format check
+
 
 PYTHON := python3
 VENV ?= .venv
 ACTIVATE := source $(VENV)/bin/activate
 
 help:
+
         @echo "Targets: setup, lint, test, format, check, wizard"
+
+	@echo "Targets: setup, lint, test, format, check"
+
 
 $(VENV)/bin/activate:
 	$(PYTHON) -m venv $(VENV)
@@ -31,7 +39,11 @@ precommit:
 check: format lint mypy
 
 test:
+
         @echo "Tests are disabled for this project."
 
 wizard:
         $(PYTHON) scripts/repo/setup_wizard.py
+
+	@echo "Tests are disabled for this project."
+

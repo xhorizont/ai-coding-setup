@@ -22,6 +22,13 @@ make setup
 make test
 ```
 Run the wizard whenever you change assistant routing or credentials (`--check` performs validation without prompts).
+
+## Run & test
+```bash
+make setup
+make test
+```
+
 Ensure tests are green before enabling auto-accept or merging.
 
 ## Collaboration contract
