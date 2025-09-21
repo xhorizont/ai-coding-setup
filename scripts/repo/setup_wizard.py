@@ -1,0 +1,612 @@
+#!/usr/bin/env python3
+"""Interactive setup wizard for the AI coding template."""
+from __future__ import annotations
+
+import argparse
+import platform
+import shutil
+import sys
+import textwrap
+from dataclasses import dataclass
+from getpass import getpass
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Tuple
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[2]
+ASSISTANTS_DIR = ROOT / "assistants"
+CONFIGS_DIR = ROOT / "configs"
+ENV_PATH = ROOT / ".env"
+ENV_TEMPLATE_PATH = ROOT / ".env.example"
+ASSISTANTS_CONFIG_PATH = CONFIGS_DIR / "assistants.yaml"
+
+
+@dataclass
+class ProviderInfo:
+    slug: str
+    label: str
+    description: str
+    env_var: Optional[str]
+    requires_key: bool = True
+    default: str = ""
+    doc_hint: Optional[str] = None
+
+
+PROVIDERS: Dict[str, ProviderInfo] = {
+    "anthropic": ProviderInfo(
+        slug="anthropic",
+        label="Anthropic Claude",
+        description="Primary assistant for spec-first work, implementation, and most workflows.",
+        env_var="ANTHROPIC_API_KEY",
+        requires_key=True,
+        doc_hint="Needed for models defined under assistants/anthropic/models/*.yaml.",
+    ),
+    "openai": ProviderInfo(
+        slug="openai",
+        label="OpenAI",
+        description="Used for complementary reviews (e.g., PR feedback via o3-mini-high).",
+        env_var="OPENAI_API_KEY",
+        requires_key=True,
+    ),
+    "google": ProviderInfo(
+        slug="google",
+        label="Google Gemini",
+        description="Optional assistant for experimentation or multimodal tasks.",
+        env_var="GOOGLE_API_KEY",
+        requires_key=True,
+    ),
+    "deepseek": ProviderInfo(
+        slug="deepseek",
+        label="DeepSeek",
+        description="Fast code-focused assistant leveraged for refactors.",
+        env_var="DEEPSEEK_API_KEY",
+        requires_key=True,
+    ),
+    "ollama": ProviderInfo(
+        slug="ollama",
+        label="Ollama",
+        description="Connects to your local Ollama daemon for offline iterations.",
+        env_var="OLLAMA_HOST",
+        requires_key=False,
+        default="http://localhost:11434",
+        doc_hint="Ensure the Ollama service is running locally before invoking local-playground workflows.",
+    ),
+}
+
+OPTIONAL_ENV_VARS = {
+    "GITHUB_TOKEN": "Optional token for the GitHub MCP server (repo scope recommended).",
+}
+
+TASK_DESCRIPTIONS = {
+    "spec-first": "High-level planning and specification drafting.",
+    "implement-feature": "Hands-on feature development and coding sessions.",
+    "pr-review": "Automated pull request critique prior to human review.",
+    "refactor": "Structured clean-up and code improvement passes.",
+    "local-playground": "Lightweight explorations with local models.",
+}
+
+
+@dataclass
+class ValidationReport:
+    blocking: List[str]
+    advisories: List[str]
+
+    @property
+    def is_clean(self) -> bool:
+        return not self.blocking and not self.advisories
+
+
+def wrap(text: str) -> str:
+    return textwrap.fill(text, width=88)
+
+
+def print_banner() -> None:
+    print("=" * 72)
+    print("AI Coding Setup Wizard".center(72))
+    print("=" * 72)
+    print(
+        wrap(
+            "This guided experience configures assistant routing, secrets, and environment "
+            "checks so you can adopt the spec-first workflow quickly."
+        )
+    )
+    print()
+
+
+def print_section(title: str) -> None:
+    print()
+    print(title)
+    print("-" * len(title))
+
+
+def prompt_yes_no(question: str, default: bool = True) -> bool:
+    suffix = " [Y/n]" if default else " [y/N]"
+    while True:
+        answer = input(f"{question}{suffix} ").strip().lower()
+        if not answer:
+            return default
+        if answer in {"y", "yes"}:
+            return True
+        if answer in {"n", "no"}:
+            return False
+        print("Please respond with 'y' or 'n'.")
+
+
+def load_env_values(path: Path) -> Dict[str, str]:
+    values: Dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip()
+    return values
+
+
+def normalize_env_values(env_values: Dict[str, str]) -> Dict[str, str]:
+    normalized: Dict[str, str] = {}
+    for key, value in env_values.items():
+        if value.lower() == "replace-me":
+            normalized[key] = ""
+        else:
+            normalized[key] = value
+    for provider in PROVIDERS.values():
+        if provider.env_var and provider.env_var not in normalized:
+            normalized[provider.env_var] = provider.default
+    for key in OPTIONAL_ENV_VARS:
+        normalized.setdefault(key, "")
+    return normalized
+
+
+def write_env_file(env_values: Dict[str, str], extra_entries: Dict[str, str]) -> None:
+    lines: List[str] = []
+    lines.append("# Generated by scripts/repo/setup_wizard.py")
+    lines.append("# Update values as needed; secrets should never be committed to version control.")
+    lines.append("")
+
+    for provider_key in PROVIDERS:
+        info = PROVIDERS[provider_key]
+        if not info.env_var:
+            continue
+        lines.append(f"# {info.label}: {info.description}")
+        if info.doc_hint:
+            lines.append(f"# {info.doc_hint}")
+        value = env_values.get(info.env_var, "")
+        lines.append(f"{info.env_var}={value}")
+        lines.append("")
+
+    for key, description in OPTIONAL_ENV_VARS.items():
+        lines.append(f"# {description}")
+        lines.append(f"{key}={env_values.get(key, '')}")
+        lines.append("")
+
+    if extra_entries:
+        lines.append("# Additional custom environment entries preserved by the wizard")
+        for key, value in sorted(extra_entries.items()):
+            lines.append(f"{key}={value}")
+        lines.append("")
+
+    ENV_PATH.write_text("\n".join(lines).rstrip("\n") + "\n", encoding="utf-8")
+
+
+def discover_models() -> Dict[str, Dict[str, str]]:
+    combos: Dict[str, Dict[str, str]] = {}
+    if not ASSISTANTS_DIR.exists():
+        return combos
+    for provider_dir in ASSISTANTS_DIR.iterdir():
+        if not provider_dir.is_dir():
+            continue
+        models_dir = provider_dir / "models"
+        if not models_dir.exists():
+            continue
+        for model_file in models_dir.glob("*.yaml"):
+            identifier = f"{provider_dir.name}/{model_file.stem}"
+            try:
+                data = yaml.safe_load(model_file.read_text(encoding="utf-8")) or {}
+            except yaml.YAMLError:
+                data = {}
+            combos[identifier] = {
+                "model": data.get("model", model_file.stem),
+                "purpose": data.get("purpose", ""),
+            }
+    return combos
+
+
+def load_assistant_routing() -> Dict[str, str]:
+    if not ASSISTANTS_CONFIG_PATH.exists():
+        return {}
+    data = yaml.safe_load(ASSISTANTS_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    tasks = data.get("tasks", {})
+    return {str(key): str(value) for key, value in tasks.items()}
+
+
+def save_assistant_routing(tasks: Dict[str, str]) -> None:
+    payload = {"tasks": tasks}
+    ASSISTANTS_CONFIG_PATH.write_text(
+        yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+
+
+def extract_providers_from_tasks(tasks: Dict[str, str]) -> List[str]:
+    providers: List[str] = []
+    for target in tasks.values():
+        if not isinstance(target, str) or "/" not in target:
+            continue
+        provider = target.split("/", 1)[0]
+        if provider not in providers:
+            providers.append(provider)
+    return providers
+
+
+def prompt_for_task_choice(
+    task: str,
+    current: str,
+    models: Dict[str, Dict[str, str]],
+) -> str:
+    description = TASK_DESCRIPTIONS.get(task, "")
+    if description:
+        print(wrap(f"{task}: {description}"))
+    else:
+        print(f"{task}: (no description available)")
+    print(f"Current assistant: {current}")
+    print("Available options:")
+    sorted_items = sorted(models.items())
+    for index, (identifier, meta) in enumerate(sorted_items, start=1):
+        purpose = f" — {meta['purpose']}" if meta.get("purpose") else ""
+        print(f"  [{index}] {identifier} ({meta['model']}{purpose})")
+    print("  [0] Keep current selection")
+
+    while True:
+        choice = input("Select an option by number (or press Enter to keep current): ").strip()
+        if not choice or choice == "0":
+            return current
+        if not choice.isdigit():
+            print("Please enter a valid number.")
+            continue
+        index = int(choice)
+        if 1 <= index <= len(sorted_items):
+            return sorted_items[index - 1][0]
+        print("Number out of range, try again.")
+
+
+def configure_routing(models: Dict[str, Dict[str, str]]) -> Tuple[Dict[str, str], List[str], bool]:
+    tasks = load_assistant_routing()
+    if not tasks:
+        print("No assistant routing configuration found; nothing to update.")
+        return tasks, [], False
+
+    print_section("Assistant routing")
+    print(
+        wrap(
+            "Workflows such as spec-first, implementation, and reviews rely on this routing. "
+            "We'll walk through each task so you can confirm or change which assistant handles it."
+        )
+    )
+
+    if not prompt_yes_no("Review the routing map now?", default=True):
+        providers = extract_providers_from_tasks(tasks)
+        return tasks, providers, False
+
+    changed = False
+    for task, current in tasks.items():
+        print()
+        new_value = prompt_for_task_choice(task, current, models)
+        if new_value != current:
+            tasks[task] = new_value
+            changed = True
+
+    if changed:
+        save_assistant_routing(tasks)
+        print()
+        print("Updated configs/assistants.yaml with your selections.")
+
+    providers = extract_providers_from_tasks(tasks)
+    return tasks, providers, changed
+
+
+def prompt_for_secret(info: ProviderInfo, existing: str, required: bool) -> str:
+    display_existing = " (leave blank to keep current)" if existing else ""
+    while True:
+        value = getpass(f"Enter {info.label} API key{display_existing}: ").strip()
+        if value:
+            return value
+        if existing:
+            return existing
+        if not required:
+            return ""
+        print("This value is required because the provider is used by your workflows.")
+
+
+def prompt_for_text(prompt: str, existing: str, required: bool, default: str = "") -> str:
+    suffix = " (leave blank to keep current)" if existing else ""
+    while True:
+        value = input(f"{prompt}{suffix}: ").strip()
+        if value:
+            return value
+        if existing:
+            return existing
+        if not required:
+            return default
+        print("Please supply a value or press Ctrl+C to abort.")
+
+
+def configure_env(required_providers: Iterable[str]) -> Tuple[Dict[str, str], Dict[str, str]]:
+    print_section("Credentials and connections")
+    print(
+        wrap(
+            "Assistant credentials live in the .env file. We'll gather API keys for the providers "
+            "referenced in your routing and optionally capture extras."
+        )
+    )
+
+    template_values = load_env_values(ENV_TEMPLATE_PATH)
+    existing_values = load_env_values(ENV_PATH)
+    merged = normalize_env_values({**template_values, **existing_values})
+
+    known_keys = {info.env_var for info in PROVIDERS.values() if info.env_var}
+    known_keys.update(OPTIONAL_ENV_VARS.keys())
+    extra_entries = {k: v for k, v in merged.items() if k not in known_keys}
+
+    env_values = {k: v for k, v in merged.items() if k in known_keys}
+
+    required_set = set(required_providers)
+
+    for provider_key in PROVIDERS:
+        info = PROVIDERS[provider_key]
+        if not info.env_var:
+            continue
+        required = provider_key in required_set
+        current_value = env_values.get(info.env_var, info.default)
+
+        print()
+        print(wrap(f"{info.label}: {info.description}"))
+        if required:
+            print(wrap("This provider is referenced by your current assistant routing."))
+        elif info.doc_hint:
+            print(wrap(info.doc_hint))
+
+        if info.requires_key:
+            if not required and not prompt_yes_no(f"Configure {info.label} now?", default=bool(current_value)):
+                env_values[info.env_var] = current_value if current_value != "replace-me" else ""
+                continue
+            new_value = prompt_for_secret(info, current_value, required)
+        else:
+            explanation = (
+                f"Enter the host URL for {info.label}." if info.env_var == "OLLAMA_HOST" else "Enter the value"
+            )
+            new_value = prompt_for_text(explanation, current_value or info.default, required, default=info.default)
+        env_values[info.env_var] = new_value
+
+    for key, description in OPTIONAL_ENV_VARS.items():
+        print()
+        existing = env_values.get(key, "")
+        default_choice = bool(existing)
+        if prompt_yes_no(f"Add/update {key}? {description}", default=default_choice):
+            new_value = prompt_for_secret(
+                ProviderInfo(key, key, description, key, requires_key=True), existing, required=False
+            )
+            env_values[key] = new_value
+        else:
+            env_values[key] = existing
+
+    return env_values, extra_entries
+
+
+def command_available(candidates: Iterable[str]) -> bool:
+    return any(shutil.which(cmd) for cmd in candidates)
+
+
+def validate_environment(
+    required_providers: Iterable[str],
+    env_values: Dict[str, str],
+    env_info: Dict[str, str],
+    routing: Dict[str, str],
+) -> ValidationReport:
+    report = ValidationReport(blocking=[], advisories=[])
+
+    python_cmds = ["python3"]
+    pip_cmds = ["pip", "pip3"]
+    make_cmds = ["make"]
+
+    if env_info.get("system") == "Windows" and not env_info.get("is_wsl"):
+        python_cmds = ["py", "python"]
+        pip_cmds = ["pip", "pip3"]
+        make_cmds.extend(["mingw32-make", "nmake"])
+
+    if sys.version_info < (3, 10):
+        report.blocking.append(
+            "Python 3.10 or newer is required to run the tooling. Upgrade your interpreter before continuing."
+        )
+
+    if not command_available(python_cmds):
+        report.blocking.append("Python executable not found on PATH. Install Python before proceeding.")
+    if not command_available(["git"]):
+        report.blocking.append("Git is missing. Install Git 2.40+ to manage repository state.")
+    if not command_available(pip_cmds):
+        report.blocking.append("pip is unavailable. Ensure Python's package manager is installed.")
+    if not command_available(make_cmds):
+        report.advisories.append(
+            "GNU make (or an equivalent) is missing. You can still run the underlying commands manually as documented."
+        )
+    if not command_available(["pre-commit"]):
+        report.advisories.append(
+            "pre-commit is not installed yet. The setup target will install it automatically."
+        )
+
+    available_models = discover_models()
+    for task, mapping in routing.items():
+        if mapping not in available_models:
+            report.blocking.append(
+                f"Task '{task}' references '{mapping}', but that assistant configuration was not found."
+            )
+
+    required_set = set(required_providers)
+    for provider_key in required_set:
+        info = PROVIDERS.get(provider_key)
+        if not info or not info.env_var:
+            continue
+        value = env_values.get(info.env_var, "").strip()
+        if info.requires_key and not value:
+            report.blocking.append(
+                f"Missing {info.label} credentials ({info.env_var}) required for the configured workflows."
+            )
+        if not info.requires_key and not value:
+            report.advisories.append(
+                f"{info.label} host is blank. Update {info.env_var} before running local models."
+            )
+
+    if not ENV_PATH.exists():
+        report.blocking.append(".env file not found. Run the wizard or copy .env.example to .env and fill in secrets.")
+
+    return report
+
+
+def detect_environment() -> Dict[str, str]:
+    system = platform.system()
+    release = platform.release().lower()
+    is_wsl = system == "Linux" and "microsoft" in release
+    return {"system": system, "release": platform.release(), "is_wsl": is_wsl}
+
+
+def print_environment_guidance(env_info: Dict[str, str]) -> None:
+    print_section("Workstation prerequisites")
+    system = env_info.get("system", "")
+    if env_info.get("is_wsl"):
+        print(wrap("Detected Windows Subsystem for Linux. Follow the Linux setup instructions from the README inside WSL."))
+        return
+    if system == "Darwin":
+        print(
+            wrap(
+                "macOS detected. Install Xcode Command Line Tools, Homebrew, and Python as documented in the README's operating "
+                "system section before running make setup."
+            )
+        )
+    elif system == "Linux":
+        print(
+            wrap(
+                "Linux detected. Ensure build-essential, Python 3, Git, and make are installed (apt, yum, or your package manager)."
+            )
+        )
+    elif system == "Windows":
+        print(
+            wrap(
+                "Windows detected. Running under native PowerShell requires Git for Windows, Python 3.11+, and a make-compatible "
+                "tool. WSL2 is recommended for parity with Linux tooling."
+            )
+        )
+    else:
+        print(
+            wrap(
+                "Unable to classify your OS automatically. Refer to the README operating system section for manual setup steps."
+            )
+        )
+
+
+def summarize_env(env_values: Dict[str, str], required_providers: Iterable[str]) -> None:
+    def mask(value: str) -> str:
+        value = value.strip()
+        if not value:
+            return "<missing>"
+        if len(value) <= 4:
+            return "*" * len(value)
+        return "*" * (len(value) - 4) + value[-4:]
+
+    print_section("Configuration summary")
+    required_set = set(required_providers)
+    for provider_key in PROVIDERS:
+        info = PROVIDERS[provider_key]
+        if not info.env_var:
+            continue
+        value = env_values.get(info.env_var, "")
+        status = "configured" if value else "missing"
+        note = " (required)" if provider_key in required_set else ""
+        display = mask(value) if info.requires_key else (value or "<missing>")
+        print(f"- {info.label}{note}: {status} [{display}]")
+    for key in OPTIONAL_ENV_VARS:
+        value = env_values.get(key, "")
+        status = "configured" if value else "missing"
+        print(f"- {key} (optional): {status}")
+
+
+def run_wizard() -> None:
+    print_banner()
+    env_info = detect_environment()
+    print_environment_guidance(env_info)
+
+    models = discover_models()
+    routing, providers, _ = configure_routing(models)
+    if not routing:
+        print("No routing configuration present. Skipping assistant selection.")
+
+    env_values, extra_entries = configure_env(providers)
+    write_env_file(env_values, extra_entries)
+    print()
+    print("Updated .env with your selections.")
+
+    report = validate_environment(providers, env_values, env_info, routing)
+    summarize_env(env_values, providers)
+
+    if report.blocking:
+        print()
+        print("Action items before you continue:")
+        for item in report.blocking:
+            print(f"  - {item}")
+    if report.advisories:
+        print()
+        print("Additional recommendations:")
+        for item in report.advisories:
+            print(f"  - {item}")
+
+    if not report.blocking:
+        print()
+        print(
+            wrap(
+                "Next steps: install dependencies with 'make setup' (or the manual commands for your OS) and run "
+                "'python scripts/repo/validate_config.py' to confirm YAML/JSON configs."
+            )
+        )
+
+
+def run_check_mode() -> int:
+    env_info = detect_environment()
+    routing = load_assistant_routing()
+    providers = extract_providers_from_tasks(routing)
+    env_values = normalize_env_values(load_env_values(ENV_PATH))
+    report = validate_environment(providers, env_values, env_info, routing)
+
+    if report.blocking:
+        print("Blocking issues detected:")
+        for item in report.blocking:
+            print(f"  - {item}")
+    if report.advisories:
+        print("Advisories:")
+        for item in report.advisories:
+            print(f"  - {item}")
+
+    return 0 if not report.blocking else 1
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Interactive wizard for configuring AI coding setup.")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Validate environment and configuration without running the interactive prompts.",
+    )
+    args = parser.parse_args()
+
+    try:
+        if args.check:
+            sys.exit(run_check_mode())
+        run_wizard()
+    except KeyboardInterrupt:
+        print("\nWizard cancelled by user. No changes were made beyond completed steps.")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

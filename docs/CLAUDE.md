@@ -15,11 +15,20 @@ This repository follows Anthropic's Claude Code best practices for agentic devel
 - `workflows/` – YAML recipes orchestrating multi-step tasks.
 - `tests/` – Unit and e2e suites (create new modules per feature).
 
+## Setup & test
+```bash
+python scripts/repo/setup_wizard.py
+make setup
+make test
+```
+Run the wizard whenever you change assistant routing or credentials (`--check` performs validation without prompts).
+
 ## Run & test
 ```bash
 make setup
 make test
 ```
+
 Ensure tests are green before enabling auto-accept or merging.
 
 ## Collaboration contract

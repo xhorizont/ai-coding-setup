@@ -4,14 +4,30 @@ Repository skeleton for orchestrating AI-assisted software development across mu
 
 ## Quick start
 
+
+1. Run `python scripts/repo/setup_wizard.py` to select assistants, populate `.env`, and review environment prerequisites.
+2. Prepare your workstation following the [operating system setup](#operating-system-setup) guidance below (the wizard highlights the tasks to prioritise).
 1. Copy `.env.example` to `.env` and fill in provider API keys.
 2. Prepare your workstation following the [operating system setup](#operating-system-setup) guidance below.
+
 3. Run `make setup` (or the equivalent commands listed for your OS) to install dependencies and register recommended pre-commit hooks.
 4. Explore the docs:
    - `docs/PROJECT_SPEC.md` for business goals
    - `docs/TECHNICAL_SPEC.md` for architecture plans
    - `docs/CLAUDE.md` for Claude-oriented practices (MCP, git hygiene, auto-accept policy)
 5. Trigger workflows with `python scripts/ai/run_workflow.py --task spec-first --assistant anthropic/claude-3.7-sonnet`.
+
+
+## Interactive setup wizard
+
+The wizard at `scripts/repo/setup_wizard.py` guides you through the most important configuration steps:
+
+- Detects your operating system and reiterates the prerequisites from this README.
+- Lets you confirm or override task-to-assistant routing in `configs/assistants.yaml`.
+- Collects provider credentials and writes them to `.env`, preserving any custom entries.
+- Verifies that required tooling (Python, Git, `pip`, etc.) is installed and that each referenced provider has credentials.
+
+Re-run the wizard later with `python scripts/repo/setup_wizard.py --check` to validate your environment without prompts.
 
 ## Operating system setup
 
@@ -89,12 +105,17 @@ After the environment is prepared, run `python scripts/repo/validate_config.py` 
 
 1. **Create your repository.** Either fork this repo or use GitHub's "Use this template" feature to start with a clean history.
 2. **Fill in the specs first.** Complete `docs/PROJECT_SPEC.md` and `docs/TECHNICAL_SPEC.md` before writing code so agents can reference them.
+3. **Configure assistants.** Update `configs/assistants.yaml` and the files under `assistants/` (the setup wizard can walk you through the defaults).
+4. **Secure credentials.** Run `python scripts/repo/setup_wizard.py` to populate `.env` with the necessary secrets, or copy `.env.example` manually if you prefer.
+5. **Bootstrap tooling.** Run `make setup` (or the manual commands from the OS sections) followed by `python scripts/repo/validate_config.py` to ensure everything is wired together.
+6. **Iterate with safe checkpoints.** Follow the spec-first workflow (`workflows/spec-first.yml`), commit frequently, and rely on `docs/CLAUDE.md` for rules about MCP tools, auto-accept limits, and Git hygiene.
+7. **Customize further.** Replace the sample `examples/demo_project` contents, add source code under `src/`, and flesh out `tests/` as you build features.
 3. **Configure assistants.** Update `configs/assistants.yaml` and the files under `assistants/` to match the models and workflows your team will use.
 4. **Secure credentials.** Copy `.env.example` to `.env`, insert API keys, and keep the file out of version control.
 5. **Bootstrap tooling.** Run `make setup` (or the manual commands from the OS sections) followed by `python scripts/repo/validate_config.py` to ensure everything is wired together.
 6. **Iterate with safe checkpoints.** Follow the spec-first workflow (`workflows/spec-first.yml`), commit frequently, and rely on `docs/CLAUDE.md` for rules about MCP tools, auto-accept limits, and Git hygiene.
 7. **Customize further.** Replace the sample `examples/demo_project` contents, add source code under `src/`, and flesh out `tests/` as you build features.
-=======
+
 2. Run `make setup` to install dependencies and register recommended pre-commit hooks.
 3. Explore the docs:
    - `docs/PROJECT_SPEC.md` for business goals
