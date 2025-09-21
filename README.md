@@ -94,6 +94,13 @@ After the environment is prepared, run `python scripts/repo/validate_config.py` 
 5. **Bootstrap tooling.** Run `make setup` (or the manual commands from the OS sections) followed by `python scripts/repo/validate_config.py` to ensure everything is wired together.
 6. **Iterate with safe checkpoints.** Follow the spec-first workflow (`workflows/spec-first.yml`), commit frequently, and rely on `docs/CLAUDE.md` for rules about MCP tools, auto-accept limits, and Git hygiene.
 7. **Customize further.** Replace the sample `examples/demo_project` contents, add source code under `src/`, and flesh out `tests/` as you build features.
+=======
+2. Run `make setup` to install dependencies and register recommended pre-commit hooks.
+3. Explore the docs:
+   - `docs/PROJECT_SPEC.md` for business goals
+   - `docs/TECHNICAL_SPEC.md` for architecture plans
+   - `docs/CLAUDE.md` for Claude-oriented practices (MCP, git hygiene, auto-accept policy)
+4. Trigger workflows with `python scripts/ai/run_workflow.py --task spec-first --assistant anthropic/claude-3.7-sonnet`.
 
 ## Repository layout
 
