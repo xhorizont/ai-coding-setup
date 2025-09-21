@@ -1,0 +1,7 @@
+version: 1
+provider: google
+model: gemini-2.0-pro
+purpose: ideation
+temperature: 0.4
+tool_use: allowed
+system_prompt: "../../prompts/global/coding_guidelines.md"

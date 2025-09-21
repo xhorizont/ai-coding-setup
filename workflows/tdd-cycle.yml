@@ -1,0 +1,8 @@
+name: TDD Cycle
+steps:
+  - id: write-test
+    prompt: prompts/global/test_plan_template.md
+  - id: implement
+    prompt: prompts/tasks/implement_feature.md
+  - id: review
+    prompt: prompts/global/review_checklist.md

@@ -1,0 +1,9 @@
+{
+  "name": "github",
+  "entrypoint": "@modelcontextprotocol/server-github",
+  "config": {
+    "tokenEnv": "GITHUB_TOKEN",
+    "defaultRepo": "your-org/ai-coding-setup",
+    "allowWrite": false
+  }
+}
