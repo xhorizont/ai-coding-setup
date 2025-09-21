@@ -1,0 +1,9 @@
+version: 1
+provider: openai
+model: o3-mini-high
+purpose: review
+temperature: 0.1
+max_output_tokens: 3000
+json_mode: false
+tool_use: allowed
+system_prompt: "../../system_prompts/default.md"

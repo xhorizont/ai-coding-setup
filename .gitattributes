@@ -1,0 +1,9 @@
+# Enforce LF endings
+* text=auto eol=lf
+
+# Treat prompt/document files as text for diffing
+*.md text
+*.yaml text
+*.yml text
+*.json text
+*.py text

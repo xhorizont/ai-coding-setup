@@ -1,0 +1,8 @@
+name: Spec First
+steps:
+  - id: gather
+    description: "Review business and technical specs"
+    prompt: prompts/tasks/spec_first.md
+  - id: plan-tests
+    description: "Draft test plan"
+    prompt: prompts/global/test_plan_template.md
