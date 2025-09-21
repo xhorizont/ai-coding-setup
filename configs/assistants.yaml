@@ -1,0 +1,6 @@
+tasks:
+  spec-first: anthropic/claude-3.7-sonnet
+  implement-feature: anthropic/claude-3.7-sonnet
+  pr-review: openai/o3-mini-high
+  refactor: deepseek/deepseek-coder-v2
+  local-playground: ollama/llama3.1

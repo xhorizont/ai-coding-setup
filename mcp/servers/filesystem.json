@@ -1,0 +1,8 @@
+{
+  "name": "filesystem",
+  "entrypoint": "@modelcontextprotocol/server-filesystem",
+  "config": {
+    "root": ".",
+    "readOnly": true
+  }
+}

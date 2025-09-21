@@ -1,0 +1,8 @@
+version: 1
+provider: openai
+model: gpt-4o-mini
+purpose: code
+max_output_tokens: 4096
+temperature: 0.2
+tool_use: allowed
+system_prompt: "../../system_prompts/default.md"
