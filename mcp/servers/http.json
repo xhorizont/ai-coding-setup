@@ -1,0 +1,8 @@
+{
+  "name": "http",
+  "entrypoint": "@modelcontextprotocol/server-http",
+  "config": {
+    "allowedHosts": ["anthropic.com", "github.com", "youtube.com"],
+    "allowArbitraryUrls": false
+  }
+}

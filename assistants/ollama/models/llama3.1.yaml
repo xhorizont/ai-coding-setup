@@ -1,0 +1,7 @@
+version: 1
+provider: ollama
+model: llama3.1
+purpose: local-playground
+temperature: 0.5
+tool_use: disabled
+system_prompt: "../../prompts/system/base_system.md"

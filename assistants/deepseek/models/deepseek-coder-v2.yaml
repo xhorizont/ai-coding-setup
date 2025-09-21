@@ -1,0 +1,7 @@
+version: 1
+provider: deepseek
+model: deepseek-coder-v2
+purpose: refactor
+temperature: 0.3
+tool_use: allowed
+system_prompt: "../../prompts/global/coding_guidelines.md"

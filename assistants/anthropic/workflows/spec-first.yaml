@@ -1,0 +1,6 @@
+name: spec-first
+steps:
+  - prompt: ../../prompts/tasks/spec_first.md
+    output: spec-review.md
+  - prompt: ../../prompts/global/test_plan_template.md
+    output: test-plan.md
