@@ -1,0 +1,6 @@
+name: review
+steps:
+  - prompt: ../../prompts/global/review_checklist.md
+    output: checklist.md
+  - prompt: ../../prompts/tasks/debug.md
+    output: risk_analysis.md

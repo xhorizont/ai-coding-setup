@@ -1,0 +1,8 @@
+{
+  "name": "git",
+  "entrypoint": "@modelcontextprotocol/server-git",
+  "config": {
+    "workingDirectory": ".",
+    "allowPush": false
+  }
+}

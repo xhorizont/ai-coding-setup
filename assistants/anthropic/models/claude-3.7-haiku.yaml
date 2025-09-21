@@ -1,0 +1,15 @@
+version: 1
+provider: anthropic
+model: claude-3.7-haiku
+purpose: rapid-ideation
+max_tokens: 2048
+temperature: 0.4
+top_p: 0.95
+reasoning: disabled
+tool_use: allowed
+auto_accept: false
+allow_shell: false
+files_include:
+  - "docs/**"
+  - "prompts/**"
+system_prompt: "../../system_prompts/default.md"

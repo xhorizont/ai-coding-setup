@@ -1,0 +1,7 @@
+repo:
+  name: ai-coding-setup
+  spec_first: true
+  auto_accept_default: false
+  enforce_clean_git: true
+  testing_command: "make check"
+  docs_entrypoint: "docs/CLAUDE.md"

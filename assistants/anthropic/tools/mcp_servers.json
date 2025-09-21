@@ -1,0 +1,6 @@
+{
+  "filesystem": "../../mcp/servers/filesystem.json",
+  "git": "../../mcp/servers/git.json",
+  "github": "../../mcp/servers/github.json",
+  "http": "../../mcp/servers/http.json"
+}
