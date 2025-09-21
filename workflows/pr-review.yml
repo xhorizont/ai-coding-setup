@@ -1,0 +1,6 @@
+name: Pull Request Review
+steps:
+  - id: checklist
+    prompt: prompts/global/review_checklist.md
+  - id: risk
+    prompt: prompts/tasks/debug.md

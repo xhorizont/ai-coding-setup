@@ -1,0 +1,22 @@
+version: 1
+provider: anthropic
+model: claude-3.7-sonnet
+purpose: code
+max_tokens: 4096
+temperature: 0.2
+top_p: 0.9
+reasoning: enabled
+tool_use: allowed
+auto_accept: false
+allow_shell: false
+files_include:
+  - "src/**"
+  - "tests/**"
+  - "docs/CLAUDE.md"
+files_ignore:
+  - "node_modules/**"
+  - ".venv/**"
+system_prompt: "../../system_prompts/default.md"
+style_guides:
+  - "../../prompts/global/coding_guidelines.md"
+review_checklist: "../../prompts/global/review_checklist.md"

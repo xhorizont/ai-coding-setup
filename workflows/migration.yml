@@ -1,0 +1,8 @@
+name: Migration
+steps:
+  - id: assess
+    prompt: prompts/tasks/spec_first.md
+  - id: plan
+    prompt: prompts/tasks/refactor.md
+  - id: validate
+    prompt: prompts/global/test_plan_template.md

@@ -1,0 +1,8 @@
+name: codegen
+steps:
+  - prompt: ../../prompts/tasks/spec_first.md
+    output: planning_notes.md
+  - prompt: ../../prompts/tasks/implement_feature.md
+    output: implementation_plan.md
+  - prompt: ../../prompts/global/review_checklist.md
+    output: self_review.md
